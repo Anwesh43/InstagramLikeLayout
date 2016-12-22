@@ -14,7 +14,15 @@ import android.widget.LinearLayout;
 public class ScrollFirstLayout extends LinearLayout {
     private GestureDetector gestureDetector;
     private boolean closed = false;
-    private InstagramLikeLayout instagramLikeLayout;
+
+    public LinearLayout getMovingView() {
+        return movingView;
+    }
+
+    public LinearLayout getFixedView() {
+        return fixedView;
+    }
+
     private int y1 = 0,h =200,i=0,h1=0;
     private LinearLayout movingView,fixedView;
     private class FirstGestureListener extends GestureDetector.SimpleOnGestureListener {
@@ -28,7 +36,7 @@ public class ScrollFirstLayout extends LinearLayout {
             if(y1>=h1) {
                 closed = true;
             }
-            y1+=(int)vely;
+            y1+=vely;
             int w = ScrollFirstLayout.this.getMeasuredWidth();
             int h2 = fixedView.getMeasuredHeight();
             ScrollFirstLayout.this.setTranslationY(-y1);
@@ -61,8 +69,9 @@ public class ScrollFirstLayout extends LinearLayout {
         i++;
         return gestureDetector.onTouchEvent(event);
     }
-    public void setInstagramLikeLayout(InstagramLikeLayout instagramLikeLayout) {
-        this.instagramLikeLayout = instagramLikeLayout;
+
+    public float getNextViewY() {
+        return fixedView.getMeasuredHeight()+movingView.getMeasuredHeight()-y1;
     }
     public boolean isClosed() {
         return closed;

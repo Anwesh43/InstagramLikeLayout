@@ -10,6 +10,7 @@ import android.support.v7.widget.LinearLayoutManager;
 import android.support.v7.widget.RecyclerView;
 import android.util.AttributeSet;
 import android.util.Log;
+import android.view.GestureDetector;
 import android.view.LayoutInflater;
 import android.view.MotionEvent;
 import android.view.View;
@@ -18,6 +19,7 @@ import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 
+import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -26,6 +28,8 @@ import java.util.List;
  */
 public class InstagramLikeLayout extends RecyclerView{
     private List<PicTextElement> picTextElements = new ArrayList<>();
+    private int currentPosition = 0;
+    private GestureDetector gestureDetector;
     public InstagramLikeLayout(Context context, AttributeSet attrs) {
         super(context,attrs);
     }
@@ -41,7 +45,8 @@ public class InstagramLikeLayout extends RecyclerView{
         picTextElements = newElementList;
     }
     public void create() {
-        setLayoutManager(new LinearLayoutManager(getContext()));
+        gestureDetector = new GestureDetector(new ScrollInnerViewListener());
+        setLayoutManager(new ControllableLayoutManager(getContext()));
         setAdapter(new InstagramLikeAdapter());
         addItemDecoration(new CustomDecorator());
     }
@@ -50,15 +55,28 @@ public class InstagramLikeLayout extends RecyclerView{
         super.findChildViewUnder(dx,dy);
     }
     public boolean onTouchEvent(MotionEvent event) {
-        View child = findChildViewUnder(event.getX(),event.getY());
-        if(child!=null) {
-            ScrollFirstLayout scrollFirstLayout = (ScrollFirstLayout) child;
-            //scrollFirstLayout.setInstagramLikeLayout(this);
-            if (!scrollFirstLayout.isClosed()) {
-                return scrollFirstLayout.onTouchEvent(event);
+//        View child = findChildViewUnder(event.getX(),event.getY());
+//        if(child!=null) {
+//            ScrollFirstLayout scrollFirstLayout = (ScrollFirstLayout) child;
+//            //scrollFirstLayout.setInstagramLikeLayout(this);
+//            if (!scrollFirstLayout.isClosed()) {
+//                return scrollFirstLayout.onTouchEvent(event);
+//            }
+//        }
+        boolean touchEventFlag = super.onTouchEvent(event);
+        if(!(currentPosition == picTextElements.size()-1 && getChildCount() == 1)) {
+            ScrollFirstLayout scrollFirstLayout = (ScrollFirstLayout) getChildAt(0);
+            LinearLayout fixedView = scrollFirstLayout.getFixedView();
+            if (scrollFirstLayout.getMeasuredHeight() + scrollFirstLayout.getY() >= fixedView.getMeasuredHeight()) {
+                fixedView.bringToFront();
+                fixedView.setY(-scrollFirstLayout.getY());
+            } else if (scrollFirstLayout.getMeasuredHeight() + scrollFirstLayout.getY() < 10) {
+                fixedView.setY(0);
+                scrollFirstLayout.removeView(fixedView);
+                scrollFirstLayout.addView(fixedView, 0);
             }
         }
-        return super.onTouchEvent(event);
+        return touchEventFlag;
     }
     private class InstagramLikeAdapter extends RecyclerView.Adapter<InstagramLikeViewHolder> {
 
@@ -70,6 +88,7 @@ public class InstagramLikeLayout extends RecyclerView{
             return viewHolder;
         }
         public void onBindViewHolder(InstagramLikeViewHolder viewHolder,int position) {
+            currentPosition = position;
             viewHolder.bindViewData(picTextElements.get(position));
         }
         public int getItemCount() {
@@ -118,6 +137,79 @@ public class InstagramLikeLayout extends RecyclerView{
             outRect.top = 20;
             outRect.left = 5;
             outRect.right = 5;
+        }
+    }
+    private class ScrollInnerViewListener extends GestureDetector.SimpleOnGestureListener {
+        int index = 0;
+        int j = 0;
+        public boolean onDown(MotionEvent event) {
+            return true;
+        }
+        public boolean onSingleTapUp(MotionEvent event) {
+            return true;
+        }
+        public boolean onScroll(MotionEvent e1,MotionEvent e2,float velx,float vely) {
+            if(e1!=null && e2!=null && picTextElements.size()>0 ) {
+                View view = null;
+                if(getChildCount() == 1) {
+                    try {
+                        Recycler mRecycler = null;
+                        Field recyclerField = RecyclerView.class.getDeclaredField("mRecycler");
+                        recyclerField.setAccessible(true);
+                        mRecycler = (Recycler)recyclerField.get(InstagramLikeLayout.this);
+
+                        if(e1.getY()>e2.getY() && index<picTextElements.size()-1) {
+                            view = mRecycler.getViewForPosition(index+1);
+                        }
+                        else if(e1.getY()<e2.getY() && index!=0) {
+                            view = mRecycler.getViewForPosition(index-1);
+                        }
+                        if(view!=null) {
+                            addView(view);
+                        }
+                    }
+                    catch (Exception ex) {
+
+                    }
+                }
+                j++;
+                ScrollFirstLayout firstLayout = null;
+                if(getChildCount()>0) {
+                    firstLayout = (ScrollFirstLayout)getChildAt(0);
+                    firstLayout.onTouchEvent(e2);
+                    if(e2.getY()<e1.getY()) {
+
+                        if(firstLayout.isClosed() && index<picTextElements.size()-1) {
+                            removeView(firstLayout);
+                            index++;
+                            j = 0;
+                        }
+                    }
+                    else if(e1.getY()>e2.getY()) {
+                        if(index>0 && !firstLayout.isClosed()) {
+                            index--;
+                            j=0;
+                        }
+                    }
+                }
+
+                if(getChildCount() == 2) {
+                    ScrollFirstLayout secondLayout = (ScrollFirstLayout)getChildAt(1);
+                    if(firstLayout!=null) {
+                        secondLayout.setY(firstLayout.getNextViewY());
+                    }
+                }
+            }
+
+            return true;
+        }
+    }
+    private class ControllableLayoutManager extends LinearLayoutManager {
+        public ControllableLayoutManager(Context context) {
+            super(context);
+        }
+        public void onLayoutChildren(Recycler recycler,RecyclerView.State state) {
+            super.onLayoutChildren(recycler,state);
         }
     }
 }
